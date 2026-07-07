@@ -1,0 +1,21 @@
+====================================
+PRANA AI TRIAGE REPORT
+====================================
+
+Patient ID: PAT040
+Timestamp: 2026-06-18 03:13:51
+
+ECG ANALYSIS
+------------
+Status: NORMAL
+Confidence: 97.48%
+
+X-RAY ANALYSIS
+--------------
+Status: CRITICAL
+Findings: Lung Opacity(0.66), Pneumonia(0.56), Effusion(0.56)
+
+OVERALL TRIAGE
+--------------
+Severity: CRITICAL
+Action: Immediate referral required

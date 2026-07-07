@@ -1,0 +1,42 @@
+=================================================
+PRANA AI TRIAGE SYSTEM ARCHITECTURE
+=================================================
+
+MIT-BIH Arrhythmia Dataset
+            │
+            ▼
+    ECG Window Extraction
+    (38,970 ECG Segments)
+            │
+            ▼
+      CNN Training
+      (PyTorch)
+            │
+            ▼
+   ecg_cnn_model.pth
+            │
+            ▼
+     CNN Inference
+            │
+            ▼
+     NATS Publisher
+            │
+            ▼
+      NATS Server
+            │
+            ▼
+     NATS Subscriber
+            │
+            ▼
+   Severity Assessment
+ (ECG + X-Ray Results)
+            │
+            ▼
+     SQLite Database
+  (prana_records.db)
+            │
+            ▼
+   Streamlit Dashboard
+            │
+            ▼
+   Real-Time Monitoring

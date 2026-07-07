@@ -305,9 +305,53 @@ def save_report(
     conn.commit()
     row_id = cursor.lastrowid
     conn.close()
-
-    print(f"  Report saved → DB row #{row_id}  "
-          f"(Patient: {patient_id}, Severity: {severity})")
+    
+    os.makedirs(
+        "reports",
+        exist_ok=True
+    )
+    
+    report_path = f"reports/{patient_id}_report.txt"
+    
+    with open(
+        report_path,
+        "w",
+        encoding="utf-8"
+    ) as report:
+    
+        report.write("====================================\n")
+        report.write("PRANA AI TRIAGE REPORT\n")
+        report.write("====================================\n\n")
+    
+        report.write(f"Patient ID: {patient_id}\n")
+        report.write(f"Timestamp: {timestamp}\n\n")
+    
+        report.write("ECG ANALYSIS\n")
+        report.write("------------\n")
+        report.write(f"Status: {ecg_result['status']}\n")
+        report.write(
+            f"Confidence: {ecg_result['confidence']:.2f}%\n\n"
+        )
+    
+        report.write("X-RAY ANALYSIS\n")
+        report.write("--------------\n")
+        report.write(f"Status: {xray_result['status']}\n")
+        report.write(f"Findings: {flagged_str}\n\n")
+    
+        report.write("OVERALL TRIAGE\n")
+        report.write("--------------\n")
+        report.write(f"Severity: {severity}\n")
+        report.write(f"Action: {action}\n")
+    
+    print(
+        f"  Report file saved → {report_path}"
+    )
+    
+    print(
+        f"  Report saved → DB row #{row_id} "
+        f"(Patient: {patient_id}, Severity: {severity})"
+    )
+    
     return row_id
 
 

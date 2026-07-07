@@ -1,0 +1,21 @@
+====================================
+PRANA AI TRIAGE REPORT
+====================================
+
+Patient ID: PAT037
+Timestamp: 2026-06-18 03:13:47
+
+ECG ANALYSIS
+------------
+Status: NORMAL
+Confidence: 96.67%
+
+X-RAY ANALYSIS
+--------------
+Status: NORMAL
+Findings: None
+
+OVERALL TRIAGE
+--------------
+Severity: NORMAL
+Action: No immediate action required

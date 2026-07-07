@@ -37,18 +37,26 @@
 import asyncio
 import json
 import numpy as np
-import pandas as pd
+
 from datetime import datetime
-import neurokit2 as nk
+
 import nats
+import time
+
+
+
+from cnn_inference import predict_ecg_cnn
+from real_ecg_stream import get_real_ecg_segment
 
 # Import our existing modules
 from prana_database import (
-    load_ecg_model,
-    extract_hrv_features,
     init_database,
     save_report,
     get_stats
+)
+from system_monitor import (
+    get_system_stats,
+    measure_processing_time
 )
 
 # ─────────────────────────────────────────────────────────────
@@ -64,7 +72,8 @@ WINDOW_SECONDS  = 10
 ALERT_THRESHOLD = 0.3
 
 # How many simulated patients to send
-N_PATIENTS = 5
+
+N_PATIENTS = 50
 
 
 # =============================================================
@@ -75,57 +84,18 @@ N_PATIENTS = 5
 
 def simulate_ecg_data(patient_id, scenario="random"):
     """
-    Simulate ECG sensor reading for one patient.
-    On Raspberry Pi this would read from the actual ECG sensor.
-
-    Scenarios:
-        normal      → healthy HR 60–90 BPM
-        tachycardia → fast HR 110–160 BPM
-        bradycardia → slow HR 30–50 BPM
-        irregular   → normal rate but noisy signal
-        random      → pick one randomly
+    Returns a real ECG segment from the MIT-BIH dataset.
     """
-    if scenario == "random":
-        scenario = np.random.choice(
-            ["normal", "tachycardia", "bradycardia", "irregular"],
-            p=[0.5, 0.2, 0.15, 0.15]   # realistic distribution
-        )
 
-    if scenario == "normal":
-        ecg = nk.ecg_simulate(
-            duration=WINDOW_SECONDS,
-            sampling_rate=SAMPLING_RATE,
-            heart_rate=np.random.uniform(60, 90),
-            noise=0.05
-        )
-    elif scenario == "tachycardia":
-        ecg = nk.ecg_simulate(
-            duration=WINDOW_SECONDS,
-            sampling_rate=SAMPLING_RATE,
-            heart_rate=np.random.uniform(110, 160),
-            noise=0.15
-        )
-    elif scenario == "bradycardia":
-        ecg = nk.ecg_simulate(
-            duration=WINDOW_SECONDS,
-            sampling_rate=SAMPLING_RATE,
-            heart_rate=np.random.uniform(30, 50),
-            noise=0.10
-        )
-    else:   # irregular
-        ecg = nk.ecg_simulate(
-            duration=WINDOW_SECONDS,
-            sampling_rate=SAMPLING_RATE,
-            heart_rate=np.random.uniform(60, 90),
-            noise=0.45
-        )
+    signal, label = get_real_ecg_segment()
 
     return {
-        "patient_id" : patient_id,
-        "timestamp"  : datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "scenario"   : scenario,
-        "ecg_signal" : ecg.tolist(),   # JSON-serializable list
-        "sampling_rate": SAMPLING_RATE
+        "patient_id": patient_id,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "scenario": "REAL_MITBIH",
+        "ecg_signal": signal.tolist(),
+        "sampling_rate": SAMPLING_RATE,
+        "true_label": label
     }
 
 
@@ -209,24 +179,24 @@ async def publisher(nc, n_patients=N_PATIENTS):
 # PART 2: SUBSCRIBER (the AI processing side)
 # Receives data from NATS, runs models, saves to DB
 # =============================================================
+    
+def compute_overall_severity(ecg_result, xray_result):
 
-def compute_overall_severity(ecg_status, xray_status):
-    """
-    Same logic as prana_triage.py — combine ECG + X-ray.
-    Returns (severity, action) tuple.
-    """
-    ecg_bad   = ecg_status == "ANOMALOUS"
-    xray_crit = xray_status == "CRITICAL"
-    xray_att  = xray_status == "ATTENTION"
+    ecg_bad   = ecg_result["status"] == "ANOMALOUS"
+    xray_crit = xray_result["status"] == "CRITICAL"
+    xray_att  = xray_result["status"] == "ATTENTION"
 
-    if ecg_bad and xray_crit:
+    if xray_crit:
         return "CRITICAL", "Immediate referral required"
-    elif ecg_bad or xray_crit:
-        return "HIGH",     "Urgent specialist review needed"
+
+    elif ecg_bad:
+        return "HIGH", "Urgent specialist review needed"
+
     elif xray_att:
         return "MODERATE", "Monitor and follow up within 48 hours"
+
     else:
-        return "NORMAL",   "No immediate action required"
+        return "NORMAL", "No immediate action required"
 
 
 class PranaSubscriber:
@@ -236,13 +206,14 @@ class PranaSubscriber:
     processing them together.
     """
 
-    def __init__(self, ecg_model):
-        self.ecg_model    = ecg_model
+    def __init__(self, ):
+
         self.ecg_buffer   = {}   # patient_id → ecg_data
         self.xray_buffer  = {}   # patient_id → xray_data
         self.reports_done = 0
 
     def process_patient(self, patient_id):
+        start_time = time.time()
         """
         Called when BOTH ECG and X-ray data are available
         for the same patient. Runs AI, saves to DB.
@@ -252,41 +223,39 @@ class PranaSubscriber:
 
         # ── ECG Analysis ──────────────────────────────────
         ecg_signal = np.array(ecg_raw["ecg_signal"])
-        features   = extract_hrv_features(ecg_signal, SAMPLING_RATE)
 
-        if features is None:
-            print(f"  [Subscriber] ⚠ ECG feature extraction failed for {patient_id}")
+        # CNN requires 500 samples
+
+        segment = ecg_signal[:500]
+
+        if len(segment) < 500:
+        
+            print(
+                f"  [Subscriber] ⚠ ECG segment too short for {patient_id}"
+            )
+
             return
-        print("\nDEBUG FEATURES:")
-        print(features)
-        print("Length =", len(features))
 
-        sample = pd.DataFrame(
-             [features],
-             columns=[
-                  "Mean_HR",
-                  "Mean_RR",
-                  "SDNN",
-                  "RMSSD",
-                  "pNN50"
-             ]
+        cnn_result = predict_ecg_cnn(
+            segment
         )
 
-        pred = self.ecg_model.predict(sample)[0]
-        proba = self.ecg_model.predict_proba(sample)[0]
-        # pred       = self.ecg_model.predict([features])[0]
-        # proba      = self.ecg_model.predict_proba([features])[0]
-        confidence = max(proba) * 100
+        confidence = cnn_result["confidence"]
+
+        
+
+
 
         ecg_result = {
-            "mean_hr"    : features[0],
-            "mean_rr"    : features[1] * 1000,
-            "sdnn"       : features[2] * 1000,
-            "rmssd"      : features[3] * 1000,
-            "pnn50"      : features[4],
-            "status"     : "ANOMALOUS" if pred == 1 else "NORMAL",
+        "mean_hr"    : 0,
+        "mean_rr"    : 0,
+        "sdnn"       : 0,
+        "rmssd"      : 0,
+        "pnn50"      : 0,       
+            # "status"     : "ANOMALOUS" if pred == 1 else "NORMAL",
+            "status" : cnn_result["status"],
             "confidence" : confidence,
-            "features"   : features,
+            
         }
 
         # ── X-ray Analysis (already done by publisher side) ──
@@ -297,8 +266,8 @@ class PranaSubscriber:
 
         # ── Combined Severity ─────────────────────────────
         severity, action = compute_overall_severity(
-            ecg_result["status"],
-            xray_result["status"]
+            ecg_result,
+            xray_result
         )
 
         # ── Save to SQLite ────────────────────────────────
@@ -318,11 +287,28 @@ class PranaSubscriber:
 
         print(f"\n  {sev_icon} TRIAGE COMPLETE — {patient_id}")
         print(f"     ECG    : {ecg_result['status']:<10s}  "
-              f"HR={ecg_result['mean_hr']:.0f} BPM  "
-              f"Confidence={confidence:.0f}%")
+      f"Confidence={confidence:.0f}%")
         print(f"     X-Ray  : {xray_result['status']:<10s}  "
               f"Flags: {', '.join(xray_result['flagged'].keys()) or 'None'}")
         print(f"     Overall: {severity}  →  {action}")
+
+        processing_time = measure_processing_time(
+            start_time
+        )
+
+        stats = get_system_stats()
+
+        print(
+            f"     CPU Usage : {stats['cpu']}%"
+        )
+
+        print(
+            f"     RAM Usage : {stats['memory']}%"
+        )
+
+        print(
+            f"     Process Time : {processing_time}s"
+        )
 
         self.reports_done += 1
 
@@ -361,9 +347,10 @@ async def main():
     print("  Sensors → NATS → AI → Database")
     print("=" * 60)
 
+    print(f"\nDEBUG: N_PATIENTS = {N_PATIENTS}\n")
+
     # ── Load ECG model (from prana_database.py) ───────────
-    print("\n[Step 1] Loading ECG model...")
-    ecg_model = load_ecg_model()
+    print("\n[Step 1] Loading CNN model...")
 
     # ── Setup database ─────────────────────────────────────
     print("\n[Step 2] Setting up database...")
@@ -374,7 +361,7 @@ async def main():
     try:
         nc = await nats.connect(
             NATS_URL,
-            max_reconnect_attempts=0,   # fail immediately, no retries
+            max_reconnect_attempts=1,   # fail immediately, no retries
             connect_timeout=2           # give up after 2 seconds
         )
         print(f"  Connected!")
@@ -386,12 +373,13 @@ async def main():
         print("  3. Then run this script again")
         print("  ─────────────────────────────────────────────────────")
         print("\n  Running in OFFLINE SIMULATION MODE instead...")
-        await run_offline_simulation(ecg_model)
+        await run_offline_simulation()
         return
 
     # ── Setup subscriber ───────────────────────────────────
     print("\n[Step 4] Starting subscriber (AI processing side)...")
-    subscriber = PranaSubscriber(ecg_model)
+    subscriber = PranaSubscriber()
+
 
     await nc.subscribe(ECG_TOPIC,  cb=subscriber.on_ecg)
     await nc.subscribe(XRAY_TOPIC, cb=subscriber.on_xray)
@@ -419,7 +407,7 @@ async def main():
     print("\n[Done] NATS pipeline complete.")
 
 
-async def run_offline_simulation(ecg_model):
+async def run_offline_simulation():
     """
     Runs the same pipeline without NATS.
     Used when NATS server is not running.
@@ -431,7 +419,7 @@ async def run_offline_simulation(ecg_model):
     print("=" * 60)
 
     init_database()
-    subscriber = PranaSubscriber(ecg_model)
+    subscriber = PranaSubscriber()
 
     print(f"\n  Simulating {N_PATIENTS} patients...\n")
 

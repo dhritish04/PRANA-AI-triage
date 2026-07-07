@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  nats:
+    image: nats:latest
+    container_name: nats-server
+    ports:
+      - "4222:4222" # NATS client connections
+      - "8222:8222" # NATS HTTP monitoring port (optional)
+    restart: unless-stopped

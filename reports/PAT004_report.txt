@@ -1,0 +1,21 @@
+====================================
+PRANA AI TRIAGE REPORT
+====================================
+
+Patient ID: PAT004
+Timestamp: 2026-06-18 03:13:03
+
+ECG ANALYSIS
+------------
+Status: ANOMALOUS
+Confidence: 100.00%
+
+X-RAY ANALYSIS
+--------------
+Status: NORMAL
+Findings: None
+
+OVERALL TRIAGE
+--------------
+Severity: HIGH
+Action: Urgent specialist review needed

@@ -197,6 +197,18 @@ def overall_severity(ecg_result, xray_result):
     xray_crit = xray_result["status"] == "CRITICAL"
     xray_att  = xray_result["status"] == "ATTENTION"
 
+     hr = ecg_result["mean_hr"]
+
+    # Clinical safety rules
+
+    if hr < 40:
+        return "HIGH", "Severe bradycardia detected"
+
+    if hr > 140:
+        return "HIGH", "Severe tachycardia detected"
+
+    # Existing PRANA logic
+
     if ecg_bad and xray_crit:
         return "CRITICAL", "Immediate referral required"
     elif ecg_bad or xray_crit:

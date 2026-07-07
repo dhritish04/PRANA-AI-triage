@@ -1,0 +1,21 @@
+====================================
+PRANA AI TRIAGE REPORT
+====================================
+
+Patient ID: PAT047
+Timestamp: 2026-06-18 03:14:00
+
+ECG ANALYSIS
+------------
+Status: NORMAL
+Confidence: 97.17%
+
+X-RAY ANALYSIS
+--------------
+Status: ATTENTION
+Findings: Atelectasis(0.45)
+
+OVERALL TRIAGE
+--------------
+Severity: MODERATE
+Action: Monitor and follow up within 48 hours

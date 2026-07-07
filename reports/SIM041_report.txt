@@ -1,0 +1,21 @@
+====================================
+PRANA AI TRIAGE REPORT
+====================================
+
+Patient ID: SIM041
+Timestamp: 2026-07-05 14:55:18
+
+ECG ANALYSIS
+------------
+Status: NORMAL
+Confidence: 94.76%
+
+X-RAY ANALYSIS
+--------------
+Status: NORMAL
+Findings: None
+
+OVERALL TRIAGE
+--------------
+Severity: NORMAL
+Action: No immediate action required

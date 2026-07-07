@@ -1,0 +1,34 @@
+PRANA PROJECT STATISTICS
+
+Dataset:
+--------
+MIT-BIH Arrhythmia Database
+
+Raw ECG Dataset:
+----------------
+38,970 ECG Segments
+500 Samples per Segment
+
+CNN Model:
+----------
+Framework: PyTorch
+Architecture: 1D CNN
+
+Performance:
+------------
+Test Accuracy: 95.55%
+
+Confusion Matrix:
+[[1188   44]
+ [  45  723]]
+
+System Components:
+------------------
+NATS Messaging
+CNN Inference
+SQLite Database
+Streamlit Dashboard
+
+Pipeline:
+---------
+Real ECG → CNN → NATS → SQLite → Dashboard

@@ -1,0 +1,21 @@
+====================================
+PRANA AI TRIAGE REPORT
+====================================
+
+Patient ID: PAT036
+Timestamp: 2026-06-18 03:13:45
+
+ECG ANALYSIS
+------------
+Status: ANOMALOUS
+Confidence: 89.21%
+
+X-RAY ANALYSIS
+--------------
+Status: CRITICAL
+Findings: Pneumonia(0.77), Lung Opacity(0.60), Effusion(0.57)
+
+OVERALL TRIAGE
+--------------
+Severity: CRITICAL
+Action: Immediate referral required

@@ -1,0 +1,21 @@
+====================================
+PRANA AI TRIAGE REPORT
+====================================
+
+Patient ID: SIM011
+Timestamp: 2026-07-05 14:54:44
+
+ECG ANALYSIS
+------------
+Status: NORMAL
+Confidence: 96.98%
+
+X-RAY ANALYSIS
+--------------
+Status: CRITICAL
+Findings: Lung Opacity(0.63), Pneumonia(0.60), Effusion(0.43)
+
+OVERALL TRIAGE
+--------------
+Severity: CRITICAL
+Action: Immediate referral required
